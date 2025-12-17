@@ -6,9 +6,12 @@ import {
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Role } from 'src/access-control/entities';
 
 @Entity('users')
 export class User {
@@ -28,11 +31,13 @@ export class User {
   })
   password: string;
 
-  @Column({
-    type: 'json',
-    default: '["admin"]',
+  @ManyToMany(() => Role, { eager: true })
+  @JoinTable({
+    name: 'users_roles',
+    joinColumn: { name: 'user_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
   })
-  roles: string[];
+  roles: Role[];
   @ApiProperty({
     description: 'Fecha de creación',
     type: String,
