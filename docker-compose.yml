@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  mariadb-rbac:
+    image: mariadb:11
+    container_name: mariadb-rbac
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USERNAME}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    ports:
+      - '${DB_PORT}:3306'
+    volumes:
+      - ./mariadb-data:/var/lib/mysql
