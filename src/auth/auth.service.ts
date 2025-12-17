@@ -1,5 +1,10 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { Repository } from 'typeorm';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { In, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateUserDTO, LoginUserDto } from './dto';
 import { User } from './entities/user.entity';
@@ -8,6 +13,8 @@ import { type PasswordHasher } from '../common/interfaces/password-hasher.interf
 import { JwtPayload } from './interfaces/';
 import { JwtService } from '@nestjs/jwt';
 import { handleDBExceptions } from 'src/common/exceptions/handle-db-exceptions';
+import { Role } from 'src/access-control/entities';
+import { envs } from 'src/config/envs';
 
 @Injectable()
 export class AuthService {
@@ -15,6 +22,8 @@ export class AuthService {
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
     @Inject('PasswordHasher')
     private readonly passwordHasher: PasswordHasher,
     private jwtService: JwtService,
@@ -22,12 +31,35 @@ export class AuthService {
 
   async create(createUserDto: CreateUserDTO) {
     try {
-      const { password, ...userDetails } = createUserDto;
+      const { password, role_ids, ...userDetails } = createUserDto;
+
+      let roles: Role[] = [];
+
+      // Si se envían role_ids, usarlos
+      if (role_ids && role_ids.length > 0) {
+        roles = await this.roleRepository.findBy({ id: In(role_ids) });
+      }
+      if (roles.length === 0) {
+        // Si no se envían, asignar rol por defecto
+        const defaultRole = await this.roleRepository.findOne({
+          where: { name: envs.defaultUserRole },
+        });
+
+        if (!defaultRole) {
+          throw new InternalServerErrorException(
+            'Default role "User" not found. Please create it first.',
+          );
+        }
+
+        roles = [defaultRole];
+      }
 
       const user = this.userRepository.create({
         ...userDetails,
         password: this.passwordHasher.hash(password),
+        roles,
       });
+
       const savedUser = await this.userRepository.save(user);
       return {
         ...savedUser,

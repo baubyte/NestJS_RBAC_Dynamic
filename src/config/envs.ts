@@ -21,6 +21,7 @@ interface EnvVars {
   NODE_ENV: string;
   JWT_EXPIRES_IN: string;
   DB_SYNCHRONIZE: boolean;
+  DEFAULT_USER_ROLE: string;
 }
 
 const envsSchema = joi
@@ -39,6 +40,7 @@ const envsSchema = joi
       .default('development'),
     JWT_EXPIRES_IN: joi.string().default('2h'),
     DB_SYNCHRONIZE: joi.boolean().truthy('true').falsy('false').default(false),
+    DEFAULT_USER_ROLE: joi.string().default('User'),
   })
   .unknown(true);
 
@@ -68,4 +70,5 @@ export const envs = {
   nodeEnv: envVars.NODE_ENV,
   jwtExpiresIn: envVars.JWT_EXPIRES_IN,
   dbSynchronize: envVars.DB_SYNCHRONIZE,
+  defaultUserRole: envVars.DEFAULT_USER_ROLE,
 };

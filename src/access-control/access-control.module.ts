@@ -8,6 +8,6 @@ import { Role, Permission } from './entities/';
   controllers: [AccessControlController],
   providers: [AccessControlService],
   imports: [TypeOrmModule.forFeature([Role, Permission])],
-  exports: [AccessControlService],
+  exports: [AccessControlService, TypeOrmModule],
 })
 export class AccessControlModule {}
