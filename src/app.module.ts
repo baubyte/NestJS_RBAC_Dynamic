@@ -7,6 +7,7 @@ import { CategoryModule } from './category/category.module';
 import { ProductModule } from './product/product.module';
 import { CommonModule } from './common/common.module';
 import { FilesModule } from './files/files.module';
+import { AccessControlModule } from './access-control/access-control.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { FilesModule } from './files/files.module';
     CommonModule,
     FilesModule,
     CategoryModule,
+    AccessControlModule,
   ],
   controllers: [],
   providers: [],

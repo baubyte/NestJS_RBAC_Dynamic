@@ -1,0 +1,44 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToMany,
+  JoinTable,
+} from 'typeorm';
+import { Permission } from './permission.entity';
+
+@Entity('roles')
+export class Role {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ unique: true })
+  name: string; // Ejemplo: 'Super Admin', 'Editor'
+
+  @ManyToMany(() => Permission, { eager: true }) // 'eager: true' carga los permisos automáticamente
+  @JoinTable({
+    name: 'role_permissions', // Nombre de la tabla intermedia
+    joinColumn: {
+      name: 'role_id',
+      referencedColumnName: 'id',
+    },
+    inverseJoinColumn: {
+      name: 'permission_id',
+      referencedColumnName: 'id',
+    },
+  })
+  permissions: Permission[];
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  created_at: Date;
+
+  @Column({
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP',
+    onUpdate: 'CURRENT_TIMESTAMP',
+  })
+  updated_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deleted_at: Date | null;
+}
