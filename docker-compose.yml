@@ -1,5 +1,3 @@
-version: '3'
-
 services:
   mariadb-rbac:
     image: mariadb:11
