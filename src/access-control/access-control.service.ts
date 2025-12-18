@@ -21,10 +21,6 @@ export class AccessControlService {
     private readonly permissionRepository: Repository<Permission>,
   ) {}
 
-  /**
-   * ROLES CRUD
-   */
-
   async createRole(createRoleDto: CreateRoleDto): Promise<Role> {
     try {
       const { permission_ids, ...roleData } = createRoleDto;
@@ -107,9 +103,6 @@ export class AccessControlService {
 
       return role;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       handleDBExceptions(error, 'AccessControlService.updateRole');
     }
   }
@@ -123,10 +116,6 @@ export class AccessControlService {
 
     this.logger.log(`Role soft deleted: ${role.slug} (ID: ${role.id})`);
   }
-
-  /**
-   * ASIGNACIÓN DE PERMISOS A ROLES
-   */
 
   async assignPermissionsToRole(
     roleId: number,
@@ -153,9 +142,6 @@ export class AccessControlService {
 
       return role;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       handleDBExceptions(error, 'AccessControlService.assignPermissionsToRole');
     }
   }
@@ -199,12 +185,6 @@ export class AccessControlService {
 
       return role;
     } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
       handleDBExceptions(error, 'AccessControlService.addPermissionsToRole');
     }
   }
@@ -230,19 +210,12 @@ export class AccessControlService {
 
       return role;
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       handleDBExceptions(
         error,
         'AccessControlService.removePermissionsFromRole',
       );
     }
   }
-
-  /**
-   * PERMISOS - Solo lectura
-   */
 
   async findAllPermissions(): Promise<Permission[]> {
     return this.permissionRepository.find({
@@ -269,11 +242,6 @@ export class AccessControlService {
       deleted_at: IsNull(),
     });
   }
-
-  /**
-   * UTILIDADES
-   */
-
   async getRoleWithPermissions(roleId: number): Promise<Role> {
     return this.findOneRole(roleId);
   }
