@@ -1,7 +1,10 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Res, Req } from '@nestjs/common';
+import type { Request, Response } from 'express';
 
 import { GetUser } from './decorators/get-user.decorator';
+import { GetRefreshToken } from './decorators/get-refresh-user.decorator';
 import { Auth } from './decorators/auth.decorator';
+import { RefreshAuth } from './decorators/refresh-auth.decorator';
 import { User } from './entities/user.entity';
 
 import { AuthService } from './auth.service';
@@ -13,14 +16,50 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() createUserDto: CreateUserDTO) {
-    return this.authService.create(createUserDto);
+  register(
+    @Body() createUserDto: CreateUserDTO,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    return this.authService.create(createUserDto, res, req);
   }
 
   @Post('login')
-  login(@Body() loginUserDto: LoginUserDto) {
-    return this.authService.login(loginUserDto);
+  login(
+    @Body() loginUserDto: LoginUserDto,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    return this.authService.login(loginUserDto, res, req);
   }
+
+  @Post('refresh')
+  @RefreshAuth()
+  async refresh(
+    @GetUser() user: User,
+    @GetRefreshToken('tokenId') tokenId: string,
+    @GetRefreshToken('refreshToken') refreshToken: string,
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    return this.authService.refreshAccessToken(
+      user,
+      tokenId,
+      refreshToken,
+      res,
+      req,
+    );
+  }
+
+  @Post('logout')
+  @RefreshAuth()
+  async logout(
+    @GetRefreshToken('tokenId') tokenId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.logout(tokenId, res);
+  }
+
   @Get('verify')
   @Auth()
   checkAuthStatus(@GetUser() user: User) {

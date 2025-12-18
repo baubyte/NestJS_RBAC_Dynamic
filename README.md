@@ -21,12 +21,15 @@ Sistema backend robusto desarrollado con **NestJS**, **TypeORM** y **MariaDB**, 
 ## ✨ Características Principales
 
 ### 🔐 Seguridad y Autenticación
+- ✅ **Dual Token Strategy**: Access Token (15min) + Refresh Token (30d)
 - ✅ Autenticación JWT con Passport
 - ✅ Sistema RBAC (Roles y Permisos) dinámico
 - ✅ Decorador `@Auth()` flexible (roles, permisos o ambos)
 - ✅ Guards personalizados para protección de rutas
 - ✅ Hash de contraseñas con bcrypt
 - ✅ Validación de contraseñas fuertes
+- ✅ Refresh Tokens en httpOnly cookies (protección contra XSS)
+- ✅ Revocación de tokens y tracking de dispositivos
 
 ### 🎯 Sistema de Permisos
 - ✅ Auto-detección de permisos desde el código
@@ -179,9 +182,13 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USERNAME=root
 DB_PASSWORD=your_password
-DB_NAME=nest_rbac_dynamic
-DB_SYNCHRONIZE=true
+DB_NA - Access Token (corta duración)
+JWT_SECRET=your-super-secret-jwt-key-change-in-production
+JWT_ACCESS_TOKEN_EXPIRATION=15m
 
+# JWT - Refresh Token (larga duración)
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-different-from-jwt-secret
+JWT_REFRESH_TOKEN_EXPIRATION=30d
 # JWT
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
 JWT_EXPIRES_IN=1h
@@ -234,16 +241,24 @@ El seed crea:
 ---
 
 ## 📦 Módulos Implementados
-
-### 1. 🔐 Auth Module
-
-**Responsabilidad**: Autenticación, gestión de usuarios y asignación de roles.
-
-**Endpoints Principales**:
+ (retorna access + refresh token)
+POST   /auth/login            # Login (retorna access + refresh token en cookie)
+POST   /auth/refresh          # Refrescar access token (usa cookie automática)
+POST   /auth/logout           # Logout y revocar refresh token
+GET    /auth/verify           # Verificar access token actual
 ```
-POST   /auth/register         # Registrar usuario
-POST   /auth/login            # Login y obtener JWT
-GET    /auth/verify           # Verificar token actual
+
+**Características**:
+- **Dual Token Strategy** para mayor seguridad:
+  - **Access Token**: JWT de corta duración (15 min) en header Authorization
+  - **Refresh Token**: JWT de larga duración (30 días) en httpOnly cookie
+- Autenticación JWT con Passport (dos estrategias: jwt y jwt-refresh)
+- Hash de contraseñas con bcrypt
+- Asignación de rol por defecto (`user`)
+- Asignación de múltiples roles al registrar
+- Tracking de dispositivos (IP + User-Agent)
+- Revocación de tokens en base de datos
+- Protección contra XSS (refresh token inaccesible desde JavaScript)ken actual
 ```
 
 **Características**:
@@ -421,6 +436,373 @@ deleteUser() { }
 
 ---
 
+## 🔐 Dual Token Strategy (Access + Refresh Tokens)
+
+### ¿Por qué Dual Token?
+
+La estrategia tradicional de un solo JWT tiene vulnerabilidades:
+- ❌ **Token de larga duración**: Si se compromete, es válido por horas
+- ❌ **Sin revocación**: No se puede invalidar hasta que expire
+- ❌ **XSS vulnerable**: localStorage es accesible por JavaScript malicioso
+
+**Dual Token Strategy resuelve estos problemas:**
+- ✅ **Access Token corto** (15 min): Reducción drástica de ventana de ataque
+- ✅ **Refresh Token largo** (30 días): En httpOnly cookie, inaccesible desde JS
+- ✅ **Revocación inmediata**: Tokens se pueden invalidar en base de datos
+- ✅ **Tracking de dispositivos**: IP y User-Agent registrados
+
+### Arquitectura de Tokens
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ FRONTEND                                                 │
+│                                                          │
+│ localStorage (accesible desde JavaScript):              │
+│  📄 accessToken: "eyJhbGc..." (15 minutos)              │
+│     └─ Se envía en header: Authorization: Bearer ...   │
+│                                                          │
+│ httpOnly Cookie (NO accesible desde JavaScript):        │
+│  🍪 refreshToken: "eyJhbGc..." (30 días)                │
+│     └─ Se envía automáticamente en requests             │
+│     └─ Protegido: httpOnly, secure, sameSite=strict    │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Flujo de Autenticación
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant B as Backend
+    participant DB as Database
+    
+    Note over F,DB: 1. LOGIN INICIAL
+    F->>B: POST /auth/login
+    B->>DB: Validar credenciales
+    DB-->>B: Usuario válido
+    B->>DB: Crear refresh_token
+    B-->>F: { token: "access..." } + Cookie(refreshToken)
+    
+    Note over F: Usuario trabaja normalmente con access token...
+    
+    F->>B: GET /api/users (Authorization: Bearer access...)
+    B-->>F: ✅ Data
+    
+    Note over F: 15 minutos después, access token expira...
+    
+    Note over F,DB: 2. REFRESH AUTOMÁTICO
+    F->>B: GET /api/users (token expirado)
+    B-->>F: ❌ 401 Unauthorized
+    
+    F->>B: POST /auth/refresh (con cookie automática)
+    B->>DB: Validar refresh_token
+    DB-->>B: Token válido, no revocado
+    B-->>F: { token: "nuevo_access..." }
+    
+    F->>B: GET /api/users (con nuevo access token)
+    B-->>F: ✅ Data
+    
+    Note over F,DB: 3. LOGOUT
+    F->>B: POST /auth/logout
+    B->>DB: Revocar refresh_token
+    B-->>F: Cookie borrada + { message: "Logout successful" }
+```
+
+### Endpoints del Sistema
+
+#### 1. Login/Register (Generan ambos tokens)
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+  "username": "johndoe",
+  "password": "SecurePass123!"
+}
+```
+
+**Response:**
+```json
+{
+  "id": "1",
+  "username": "johndoe",
+  "email": "john@example.com",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  ← Access Token
+}
+```
+
+**+ Cookie automática:**
+```
+Set-Cookie: refreshToken=eyJhbGc...; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000
+```
+
+#### 2. Refresh Access Token
+
+```http
+POST /api/auth/refresh
+(No requiere body, la cookie se envía automáticamente)
+```
+
+**Response:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  ← Nuevo Access Token
+}
+```
+
+#### 3. Logout (Revoca refresh token)
+
+```http
+POST /api/auth/logout
+(Cookie se envía automáticamente)
+```
+
+**Response:**
+```json
+{
+  "message": "Logout successful"
+}
+```
+
+**+ Cookie borrada:**
+```
+Set-Cookie: refreshToken=; HttpOnly; Path=/; Max-Age=0
+```
+
+### Testing con Postman
+
+#### Configuración Inicial
+1. **Habilitar cookies**: Settings → General → "Automatically follow redirects" ✅
+2. **Dominio local**: Postman maneja cookies automáticamente para localhost
+
+#### Flujo de Testing
+
+**Paso 1: Login**
+```
+POST http://localhost:3000/api/auth/login
+Body: { "username": "admin", "password": "Admin123!" }
+
+✅ Guardar el access token retornado
+✅ Postman guarda la cookie refreshToken automáticamente
+```
+
+**Paso 2: Usar API con Access Token**
+```
+GET http://localhost:3000/api/auth/users/list
+Headers: Authorization: Bearer {access_token}
+
+✅ Funciona normalmente
+```
+
+**Paso 3: Simular Token Expirado (después de 15 min)**
+```
+POST http://localhost:3000/api/auth/refresh
+(Sin headers, sin body - la cookie se envía sola)
+
+✅ Obtienes nuevo access token
+✅ Actualizar en variables de Postman
+```
+
+**Paso 4: Logout**
+```
+POST http://localhost:3000/api/auth/logout
+
+✅ Refresh token revocado
+✅ Cookie borrada
+```
+
+### Integración Frontend
+
+#### React/Vue/Angular
+
+```typescript
+// 1. Login - Guardar access token
+async function login(username: string, password: string) {
+  const response = await fetch('http://localhost:3000/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // ← IMPORTANTE: Enviar/recibir cookies
+    body: JSON.stringify({ username, password })
+  });
+  
+  const data = await response.json();
+  localStorage.setItem('accessToken', data.token); // ← Guardar access token
+  // refreshToken se guarda automáticamente en cookie httpOnly
+}
+
+// 2. API Request con access token
+async function fetchUsers() {
+  const token = localStorage.getItem('accessToken');
+  
+  const response = await fetch('http://localhost:3000/api/users', {
+    headers: { 
+      'Authorization': `Bearer ${token}` 
+    },
+    credentials: 'include' // ← IMPORTANTE: Enviar cookies
+  });
+  
+  if (response.status === 401) {
+    // Token expirado, refrescar
+    await refreshToken();
+    return fetchUsers(); // Reintentar
+  }
+  
+  return response.json();
+}
+
+// 3. Refresh automático
+async function refreshToken() {
+  const response = await fetch('http://localhost:3000/api/auth/refresh', {
+    method: 'POST',
+    credentials: 'include' // ← Cookie se envía automáticamente
+  });
+  
+  if (response.ok) {
+    const data = await response.json();
+    localStorage.setItem('accessToken', data.token); // ← Nuevo token
+  } else {
+    // Refresh token inválido/expirado → redirect a login
+    localStorage.removeItem('accessToken');
+    window.location.href = '/login';
+  }
+}
+
+// 4. Logout
+async function logout() {
+  await fetch('http://localhost:3000/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include'
+  });
+  
+  localStorage.removeItem('accessToken');
+  window.location.href = '/login';
+}
+```
+
+#### Axios Interceptor (Refresh Automático)
+
+```typescript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:3000/api',
+  withCredentials: true // ← Enviar cookies
+});
+
+// Agregar access token a cada request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Refresh automático en 401
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const { data } = await axios.post(
+          'http://localhost:3000/api/auth/refresh',
+          {},
+          { withCredentials: true }
+        );
+        
+        localStorage.setItem('accessToken', data.token);
+        originalRequest.headers.Authorization = `Bearer ${data.token}`;
+        
+        return api(originalRequest); // Reintentar request original
+      } catch (refreshError) {
+        // Refresh falló → logout
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+```
+
+### Tabla de Refresh Tokens
+
+La tabla `refresh_tokens` almacena:
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `id` | UUID | Identificador único |
+| `token` | TEXT | JWT refresh token |
+| `user_id` | INT | Relación con usuario |
+| `expires_at` | TIMESTAMP | Fecha de expiración (30 días) |
+| `is_revoked` | BOOLEAN | Si fue revocado manualmente |
+| `ip_address` | VARCHAR(45) | IP del dispositivo |
+| `user_agent` | TEXT | Navegador/dispositivo |
+| `created_at` | TIMESTAMP | Fecha de creación |
+
+**Usos avanzados:**
+- Ver sesiones activas del usuario
+- Revocar sesiones de dispositivos específicos
+- Detectar actividad sospechosa (IPs inusuales)
+- Limitar número de sesiones concurrentes
+
+### Características de Seguridad
+
+| Característica | Implementación | Beneficio |
+|---------------|----------------|-----------|
+| **HttpOnly Cookies** | ✅ `httpOnly: true` | Inaccesible desde JavaScript → Protección XSS |
+| **Secure Flag** | ✅ `secure: true` (prod) | Solo se envía por HTTPS |
+| **SameSite Strict** | ✅ `sameSite: 'strict'` | Protección contra CSRF |
+| **Access Token Corto** | ✅ 15 minutos | Ventana de ataque reducida |
+| **Revocación en BD** | ✅ Campo `is_revoked` | Logout inmediato posible |
+| **Tracking Dispositivos** | ✅ IP + User-Agent | Auditoría y detección de anomalías |
+| **CORS Configurado** | ✅ `credentials: true` | Permite cookies cross-origin seguras |
+
+### Mejoras Opcionales
+
+#### 1. Refresh Token Rotation
+Rotar el refresh token cada vez que se usa (mayor seguridad):
+
+```typescript
+// En src/auth/auth.service.ts
+async refreshAccessToken(...) {
+  // Descomentar esta línea:
+  await this.rotateRefreshToken(tokenId, currentUser, res, req);
+}
+```
+
+#### 2. Cron Job para Limpiar Tokens Expirados
+
+```typescript
+import { Cron } from '@nestjs/schedule';
+
+@Cron('0 0 * * *') // Cada día a medianoche
+async cleanExpiredTokens() {
+  await this.authService.cleanExpiredTokens();
+}
+```
+
+#### 3. Dashboard de Sesiones Activas
+
+```typescript
+@Get('sessions')
+@Auth()
+async getUserSessions(@GetUser() user: User) {
+  return this.authService.getUserActiveSessions(user.id);
+}
+```
+
+---
+
 ## 🌐 API Endpoints
 
 ### Documentación Swagger
@@ -433,10 +815,58 @@ http://localhost:3000/api/docs
 
 ### Autenticación en Swagger
 
-1. Registrarse o hacer login
-2. Copiar el token JWT
+1. Hacer login: `POST /auth/login`
+2. Copiar el access token retornado
 3. Click en "Authorize" 🔓
-4. Ingresar: `Bearer YOUR_TOKEN_HERE`
+4. Ingresar: `Bearer {ACCESS_TOKEN}`
+5. Los refresh tokens se manejan automáticamente en cookies
+
+### Tabla Completa de Endpoints
+
+| Método | Endpoint | Autenticación | Roles | Permisos | Descripción |
+|--------|----------|---------------|-------|----------|-------------|
+| **AUTH** |
+| POST | `/auth/register` | ❌ No | - | - | Registrar usuario nuevo |
+| POST | `/auth/login` | ❌ No | - | - | Login (retorna access + refresh) |
+| POST | `/auth/refresh` | 🍪 Cookie | - | - | Refrescar access token |
+| POST | `/auth/logout` | 🍪 Cookie | - | - | Logout y revocar refresh token |
+| GET | `/auth/verify` | 🔐 JWT | - | - | Verificar token actual |
+| **ROLES** |
+| POST | `/access-control/roles` | 🔐 JWT | admin, super-admin | roles.create | Crear rol |
+| GET | `/access-control/roles` | 🔐 JWT | admin, super-admin | roles.read | Listar roles |
+| GET | `/access-control/roles/:id` | 🔐 JWT | admin, super-admin | roles.read | Ver rol específico |
+| PATCH | `/access-control/roles/:id` | 🔐 JWT | admin, super-admin | roles.update | Actualizar rol |
+| DELETE | `/access-control/roles/:id` | 🔐 JWT | admin, super-admin | roles.delete | Eliminar rol |
+| POST | `/access-control/roles/:id/permissions` | 🔐 JWT | admin, super-admin | roles.update | Asignar permisos (reemplaza) |
+| PATCH | `/access-control/roles/:id/permissions/add` | 🔐 JWT | admin, super-admin | roles.update | Agregar permisos |
+| PATCH | `/access-control/roles/:id/permissions/remove` | 🔐 JWT | admin, super-admin | roles.update | Remover permisos |
+| **PERMISSIONS** |
+| GET | `/access-control/permissions` | 🔐 JWT | admin, super-admin | permissions.read | Listar permisos |
+| GET | `/access-control/permissions/:id` | 🔐 JWT | admin, super-admin | permissions.read | Ver permiso específico |
+| POST | `/access-control/permissions/sync` | 🔐 JWT | super-admin | permissions.sync | Sincronizar permisos |
+| **PRODUCTS** |
+| POST | `/products` | 🔐 JWT | - | - | Crear producto |
+| GET | `/products` | ❌ No | - | - | Listar productos (público) |
+| GET | `/products/:id` | ❌ No | - | - | Ver producto (público) |
+| PATCH | `/products/:id` | 🔐 JWT | - | - | Actualizar producto |
+| DELETE | `/products/:id` | 🔐 JWT | - | - | Eliminar producto |
+| **CATEGORIES** |
+| POST | `/categories` | 🔐 JWT | - | - | Crear categoría |
+| GET | `/categories` | ❌ No | - | - | Listar categorías (público) |
+| GET | `/categories/:id` | ❌ No | - | - | Ver categoría (público) |
+| PATCH | `/categories/:id` | 🔐 JWT | - | - | Actualizar categoría |
+| DELETE | `/categories/:id` | 🔐 JWT | - | - | Eliminar categoría |
+| **FILES** |
+| POST | `/files/product` | 🔐 JWT | - | - | Subir imagen de producto |
+| GET | `/files/product/:filename` | ❌ No | - | - | Descargar imagen |
+| **SEED** |
+| POST | `/seed/run` | ❌ No | - | - | Ejecutar seed (solo 1 vez en prod) |
+| GET | `/seed/history` | 🔐 JWT | admin, super-admin | - | Ver historial de seeds |
+
+**Leyenda:**
+- 🔐 JWT: Requiere access token en header `Authorization: Bearer {token}`
+- 🍪 Cookie: Requiere refresh token en cookie httpOnly (automático)
+- ❌ No: Endpoint público, sin autenticación
 
 ---
 

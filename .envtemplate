@@ -1,6 +1,10 @@
+NODE_ENV=development
 PORT=
-JWT_SECRET=
-JWT_EXPIRES_IN=2h
+ORIGIN=http://localhost:3000,http://localhost:5173,http://localhost:4200
+JWT_ACCESS_SECRET=
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production-min-32-chars
+JWT_ACCESS_TOKEN_EXPIRATION=15M
+JWT_REFRESH_TOKEN_EXPIRATION=30D
 
 DB_USERNAME=
 DB_PASSWORD=
@@ -12,3 +16,4 @@ DB_SYNCHRONIZE=true
 
 DEFAULT_USER_ROLE=user
 PERMISSIONS_AUTO_SYNC=true
+

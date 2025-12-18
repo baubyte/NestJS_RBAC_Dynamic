@@ -8,17 +8,21 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { Role } from 'src/access-control/entities';
+import { RefreshToken } from './refresh-token.entity';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn()
   id: string;
 
-  @Column('text')
+  @Column('text', {
+    unique: true,
+  })
   username: string;
 
   @Column('text', {
@@ -41,6 +45,10 @@ export class User {
     inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
   })
   roles: Role[];
+
+  @OneToMany(() => RefreshToken, (refreshToken) => refreshToken.user)
+  refresh_tokens: RefreshToken[];
+
   @ApiProperty({
     description: 'Fecha de creación',
     type: String,
@@ -73,12 +81,13 @@ export class User {
   deleted_at: Date | null;
 
   @BeforeInsert()
-  emailToLowerCase() {
+  emailAndUsernameToLowerCase() {
     this.email = this.email.toLocaleLowerCase().trim();
+    this.username = this.username.toLocaleLowerCase().trim();
   }
 
   @BeforeUpdate()
-  emailToLowerCaseUpdate() {
-    this.emailToLowerCase();
+  emailAndUsernameToLowerCaseUpdate() {
+    this.emailAndUsernameToLowerCase();
   }
 }
