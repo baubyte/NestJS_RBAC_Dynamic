@@ -4,6 +4,8 @@ import {
   Column,
   ManyToMany,
   JoinTable,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
 import { Permission } from './permission.entity';
 
@@ -12,8 +14,11 @@ export class Role {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ nullable: true })
+  description?: string;
+
   @Column({ unique: true })
-  name: string; // Ejemplo: 'Super Admin', 'Editor'
+  slug: string; // Ejemplo: 'super-admin', 'editor', 'viewer'
 
   @ManyToMany(() => Permission, { eager: true }) // 'eager: true' carga los permisos automáticamente
   @JoinTable({
@@ -41,4 +46,14 @@ export class Role {
 
   @Column({ type: 'timestamp', nullable: true })
   deleted_at: Date | null;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  normalizeSlug(): void {
+    this.slug = this.slug
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, ''); // Remove invalid characters
+  }
 }

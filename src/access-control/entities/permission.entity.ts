@@ -1,4 +1,11 @@
-import { Column, Entity, PrimaryGeneratedColumn, ManyToMany } from 'typeorm';
+import {
+  Column,
+  Entity,
+  PrimaryGeneratedColumn,
+  ManyToMany,
+  BeforeUpdate,
+  BeforeInsert,
+} from 'typeorm';
 import { Role } from './role.entity';
 
 @Entity('permissions')
@@ -7,7 +14,7 @@ export class Permission {
   id: number;
 
   @Column({ unique: true })
-  slug: string;
+  slug: string; // Example: 'users.create', 'products.delete'
 
   @Column({ nullable: true })
   description?: string;
@@ -27,4 +34,14 @@ export class Permission {
 
   @Column({ type: 'timestamp', nullable: true })
   deleted_at: Date | null;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  normalizeSlug(): void {
+    this.slug = this.slug
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '.')
+      .replace(/[^a-z0-9.]/g, ''); // Remove invalid characters
+  }
 }

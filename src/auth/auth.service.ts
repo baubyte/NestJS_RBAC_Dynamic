@@ -42,7 +42,7 @@ export class AuthService {
       if (roles.length === 0) {
         // Si no se envían, asignar rol por defecto
         const defaultRole = await this.roleRepository.findOne({
-          where: { name: envs.defaultUserRole },
+          where: { slug: envs.defaultUserRole },
         });
 
         if (!defaultRole) {

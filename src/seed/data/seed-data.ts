@@ -28,37 +28,40 @@ interface SeedProduct {
 }
 interface SeedRole {
   id: number;
-  name: string;
+  slug: string;
+  description?: string;
   permissions: { id: number }[];
 }
 interface SeedPermission {
   id: number;
   slug: string;
-  description: string;
+  description?: string;
 }
 
 export const initialData: SeedData = {
   permissions: [
     {
       id: 1,
-      slug: 'manage_system',
+      slug: 'system.management',
       description: 'Permission to manage the entire system',
     },
     {
       id: 2,
-      slug: 'dashboard_access',
+      slug: 'dashboard.access',
       description: 'Permission to access the dashboard',
     },
   ],
   roles: [
     {
       id: 1,
-      name: 'Super Admin',
+      slug: 'super-admin',
+      description: 'Super Administrator with full system access',
       permissions: [{ id: 1 }],
     },
     {
       id: 2,
-      name: 'User',
+      slug: 'user',
+      description: 'Regular user with limited access',
       permissions: [{ id: 2 }],
     },
   ],
