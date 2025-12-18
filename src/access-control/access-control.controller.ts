@@ -17,6 +17,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AccessControlService } from './access-control.service';
+import { PermissionsScannerService } from './permissions-scanner.service';
 import { CreateRoleDto, UpdateRoleDto, AssignPermissionsDto } from './dto';
 import { Auth } from 'src/auth/decorators/auth.decorator';
 
@@ -24,7 +25,10 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 @ApiBearerAuth()
 @Controller('access-control')
 export class AccessControlController {
-  constructor(private readonly accessControlService: AccessControlService) {}
+  constructor(
+    private readonly accessControlService: AccessControlService,
+    private readonly permissionsScannerService: PermissionsScannerService,
+  ) {}
 
   @Post('roles')
   @Auth({ roles: ['super-admin'], permissions: ['roles.create'] })
@@ -159,5 +163,36 @@ export class AccessControlController {
   @ApiResponse({ status: 404, description: 'Permiso no encontrado' })
   findOnePermission(@Param('id', ParseIntPipe) id: number) {
     return this.accessControlService.findOnePermission(id);
+  }
+
+  @Post('permissions/sync')
+  @Auth({ roles: ['super-admin'], permissions: ['permissions.sync'] })
+  @ApiOperation({
+    summary:
+      'Sincronizar permisos: escanea controladores y crea permisos nuevos',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Permisos sincronizados correctamente',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Solo administradores pueden sincronizar permisos',
+  })
+  async syncPermissions() {
+    const result = await this.permissionsScannerService.forceSyncPermissions();
+    return {
+      message: 'Permisos sincronizados exitosamente',
+      summary: {
+        totalFound: result.found.length,
+        created: result.created.length,
+        existing: result.existing.length,
+      },
+      details: {
+        found: result.found,
+        created: result.created,
+        existing: result.existing,
+      },
+    };
   }
 }

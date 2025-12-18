@@ -21,60 +21,32 @@ export class AuthController {
   login(@Body() loginUserDto: LoginUserDto) {
     return this.authService.login(loginUserDto);
   }
-
-  /**
-   * Ejemplo 1: Solo autenticación (sin validar roles ni permisos)
-   * Cualquier usuario autenticado puede acceder
-   */
   @Get('verify')
   @Auth()
   checkAuthStatus(@GetUser() user: User) {
     return this.authService.checkStatus(user);
   }
 
-  /**
-   * Ejemplo 2: Validar solo roles
-   * Solo usuarios con rol 'admin' o 'super-user' pueden acceder
-   */
-  @Get('admin/dashboard')
-  @Auth({ roles: ['admin', 'super-user'] })
-  getAdminDashboard() {
-    return { message: 'Admin Dashboard - Accessible by admin or super-user' };
-  }
-
-  /**
-   * Ejemplo 3: Validar solo permisos (retrocompatible)
-   * Solo usuarios con permiso 'users.read' pueden acceder
-   */
   @Get('users/list')
   @Auth('users.read')
   getUsersList() {
     return { message: 'Users list - Requires users.read permission' };
   }
 
-  /**
-   * Ejemplo 4: Validar permisos (sintaxis con objeto)
-   * Solo usuarios con ambos permisos pueden acceder
-   */
   @Get('users/export')
   @Auth({ permissions: ['users.read', 'users.export'] })
   exportUsers() {
     return { message: 'Export users - Requires users.read AND users.export' };
   }
-
-  /**
-   * Ejemplo 5: Validar roles Y permisos (ambos requeridos)
-   * El usuario debe tener rol admin/super-user Y el permiso users.delete
-   */
   @Get('users/delete-all')
   @Auth({
-    roles: ['admin', 'super-user'],
+    roles: ['super-admin'],
     permissions: ['users.delete'],
   })
   deleteAllUsers() {
     return {
       message:
-        'Delete all users - Requires admin/super-user role AND users.delete permission',
+        'Delete all users - Requires super-admin role AND users.delete permission',
     };
   }
 }

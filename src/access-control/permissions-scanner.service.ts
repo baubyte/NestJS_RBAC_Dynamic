@@ -1,89 +1,190 @@
-/* // permissions-scanner.service.ts
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
-import { DiscoveryService, Reflector, MetadataScanner } from '@nestjs/core';
-//import { PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import { DiscoveryService, Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Permission } from './entities/permission.entity';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
+import { META_PERMISSIONS } from 'src/auth/decorators/require-permissions.decorator';
+import { envs } from 'src/config/envs';
 
 @Injectable()
 export class PermissionsScannerService implements OnModuleInit {
   private readonly logger = new Logger(PermissionsScannerService.name);
+  private readonly autoSyncEnabled: boolean;
 
   constructor(
     private readonly discoveryService: DiscoveryService,
     private readonly reflector: Reflector,
-    private readonly metadataScanner: MetadataScanner,
     @InjectRepository(Permission)
     private readonly permissionsRepository: Repository<Permission>,
-  ) { }
+  ) {
+    // Habilitar auto-sync solo en desarrollo/staging (no en producción por defecto)
+    this.autoSyncEnabled =
+      envs.nodeEnv === 'development' || envs.permissionsAutoSync;
+  }
 
   async onModuleInit() {
+    if (!this.autoSyncEnabled) {
+      this.logger.log(
+        'Auto-sync de permisos deshabilitado (solo desarrollo/staging)',
+      );
+      return;
+    }
+
     await this.syncPermissions();
   }
 
-  private async syncPermissions() {
+  async syncPermissions(): Promise<{
+    found: string[];
+    created: string[];
+    existing: string[];
+  }> {
     this.logger.log('Escaneando permisos en los controladores...');
 
-    // 1. Obtener todos los controladores de la app
+    // 1. Obtener todos los controladores de la aplicación
     const controllers = this.discoveryService.getControllers();
-    const permissionsSet = new Set<string>();
+    const permissionsMap = new Map<
+      string,
+      { controller: string; method: string }
+    >();
 
     // 2. Recorrer cada controlador y sus métodos
     controllers.forEach((wrapper) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const { instance } = wrapper;
-      // Si no hay instancia o no es un controlador real, saltar
-      if (!instance || !Object.getPrototypeOf(instance)) return;
+      if (!instance) return;
 
-      // Escanear métodos del controlador
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+      const controllerName = instance.constructor.name;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const prototype = Object.getPrototypeOf(instance);
-      this.metadataScanner.scanFromPrototype(
-        instance,
-        prototype,
-        (methodName) => {
-          const methodHandler = instance[methodName];
+      if (!prototype) return;
 
-          // 3. Leer metadata del decorador @RequirePermissions
-          const permissions = this.reflector.get<string[]>(
-            PERMISSIONS_KEY,
-            methodHandler,
-          );
+      // Obtener todos los métodos del controlador
+      const methodNames = Object.getOwnPropertyNames(prototype).filter(
+        (name) =>
+          name !== 'constructor' &&
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          typeof prototype[name] === 'function',
+      );
 
-          if (permissions) {
-            permissions.forEach((p) => permissionsSet.add(p));
-          }
-        },
+      // Escanear cada método
+      methodNames.forEach((methodName) => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        const methodHandler = instance[methodName];
+
+        // Leer metadata del decorador @RequirePermissions (usado por @Auth)
+        const permissions = this.reflector.get<string[]>(
+          META_PERMISSIONS,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+          methodHandler,
+        );
+
+        if (permissions && permissions.length > 0) {
+          permissions.forEach((permission) => {
+            if (!permissionsMap.has(permission)) {
+              permissionsMap.set(permission, {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                controller: controllerName,
+                method: methodName,
+              });
+            }
+          });
+        }
+      });
+    });
+
+    // 3. Procesar permisos encontrados
+    const foundPermissions = Array.from(permissionsMap.entries());
+
+    if (foundPermissions.length === 0) {
+      this.logger.warn(
+        'No se encontraron permisos definidos con @Auth() o @RequirePermissions()',
+      );
+      return { found: [], created: [], existing: [] };
+    }
+
+    this.logger.log(`Permisos encontrados: ${foundPermissions.length}`);
+    foundPermissions.forEach(([slug, location]) => {
+      this.logger.debug(
+        `   - ${slug} (${location.controller}.${location.method})`,
       );
     });
 
-    // 3. Guardar en Base de Datos
-    const foundPermissions = Array.from(permissionsSet);
+    // 4. Sincronizar con la base de datos
+    const result = await this.upsertPermissions(permissionsMap);
 
-    if (foundPermissions.length > 0) {
-      this.logger.log(`Permisos encontrados: ${foundPermissions.join(', ')}`);
-      await this.upsertPermissions(foundPermissions);
-    } else {
-      this.logger.warn('No se encontraron permisos definidos en los controladores.');
-    }
+    this.logger.log('Sincronización de permisos completada');
+    return result;
   }
 
-  private async upsertPermissions(slugs: string[]) {
-    // Busca los existentes
-    const existing = await this.permissionsRepository.find();
-    const existingSlugs = existing.map((p) => p.slug);
+  private async upsertPermissions(
+    permissionsMap: Map<string, { controller: string; method: string }>,
+  ): Promise<{
+    found: string[];
+    created: string[];
+    existing: string[];
+  }> {
+    const slugs = Array.from(permissionsMap.keys());
 
-    // Filtra los nuevos
-    const newSlugs = slugs.filter((slug) => !existingSlugs.includes(slug));
+    // Buscar permisos existentes (solo activos, no soft-deleted)
+    const existing = await this.permissionsRepository.find({
+      where: { deleted_at: IsNull() },
+    });
+    const existingSlugs = new Set(existing.map((p) => p.slug));
+
+    // Filtrar permisos nuevos
+    const newSlugs = slugs.filter((slug) => !existingSlugs.has(slug));
 
     if (newSlugs.length > 0) {
-      const newPermissions = newSlugs.map((slug) =>
-        this.permissionsRepository.create({
+      const newPermissions = newSlugs.map((slug) => {
+        const location = permissionsMap.get(slug)!;
+        const description = this.generateDescription(slug, location);
+
+        return this.permissionsRepository.create({
           slug,
-          description: `Auto-generated permission for ${slug}`
-        })
-      );
+          description,
+        });
+      });
+
       await this.permissionsRepository.save(newPermissions);
-      this.logger.log(`¡Se han creado ${newSlugs.length} nuevos permisos en la BD!`);
+
+      this.logger.log(
+        `Se crearon ${newSlugs.length} nuevos permisos en la BD:`,
+      );
+      newSlugs.forEach((slug) => {
+        this.logger.log(`   + ${slug}`);
+      });
+    } else {
+      this.logger.log('Todos los permisos ya existen en la BD');
     }
+
+    return {
+      found: slugs,
+      created: newSlugs,
+      existing: slugs.filter((slug) => existingSlugs.has(slug)),
+    };
   }
-} */
+
+  private generateDescription(
+    slug: string,
+    location: { controller: string; method: string },
+  ): string {
+    // Parsear slug: 'users.create' -> 'Create users'
+    const parts = slug.split('.');
+    if (parts.length >= 2) {
+      const [resource, action] = parts;
+      const actionText = action;
+      return `${actionText} ${resource} (${location.controller}.${location.method})`;
+    }
+
+    return `Permiso: ${slug} (${location.controller}.${location.method})`;
+  }
+  async forceSyncPermissions(): Promise<{
+    found: string[];
+    created: string[];
+    existing: string[];
+  }> {
+    this.logger.log('Forzando sincronización manual de permisos...');
+    return this.syncPermissions();
+  }
+}
