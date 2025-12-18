@@ -8,14 +8,19 @@ const fileFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
   winston.format.printf(({ timestamp, level, message, context, stack }) => {
-    const contextString = typeof context === 'string' ? context : 'Application';
-    const levelString = typeof level === 'string' ? level : String(level);
-    const stackString = typeof stack === 'string' ? stack : '';
-    const messageString =
-      typeof message === 'string' ? message : String(message);
-    const timestampString =
-      typeof timestamp === 'string' ? timestamp : String(timestamp);
-    return `${timestampString} [${contextString}] ${levelString.toUpperCase()}: ${stackString || messageString}`;
+    // Asegurar que todos los valores sean strings
+    const timestampStr = String(timestamp);
+    const levelStr = String(level).toUpperCase();
+    const messageStr = String(message);
+    const stackStr = stack
+      ? typeof stack === 'string'
+        ? stack
+        : JSON.stringify(stack)
+      : '';
+    const ctx =
+      context && typeof context === 'string' ? context : 'Application';
+
+    return `${timestampStr} [${ctx}] ${levelStr}: ${stackStr || messageStr}`;
   }),
 );
 
@@ -24,7 +29,7 @@ const transports: winston.transport[] = [];
 
 // En producción: archivos con rotación
 if (envs.nodeEnv === 'production') {
-  // Logs generales
+  // Todos los logs
   transports.push(
     new DailyRotateFile({
       filename: 'logs/application-%DATE%.log',
@@ -33,7 +38,7 @@ if (envs.nodeEnv === 'production') {
       maxSize: '20m',
       maxFiles: '14d',
       format: fileFormat,
-    }) as winston.transport,
+    }),
   );
 
   // Logs de errores
@@ -46,7 +51,7 @@ if (envs.nodeEnv === 'production') {
       maxSize: '20m',
       maxFiles: '30d',
       format: fileFormat,
-    }) as winston.transport,
+    }),
   );
 }
 
@@ -68,4 +73,5 @@ transports.push(
 export const winstonConfig = {
   level: envs.nodeEnv === 'production' ? 'info' : 'debug',
   transports,
+  exitOnError: false, // No terminar el proceso en caso de error de logging
 };
