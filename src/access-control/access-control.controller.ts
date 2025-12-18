@@ -24,16 +24,10 @@ import { Auth } from 'src/auth/decorators/auth.decorator';
 @ApiBearerAuth()
 @Controller('access-control')
 export class AccessControlController {
-  constructor(
-    private readonly accessControlService: AccessControlService,
-  ) {}
-
-  /**
-   * ROLES ENDPOINTS
-   */
+  constructor(private readonly accessControlService: AccessControlService) {}
 
   @Post('roles')
-  @Auth({ roles: ['admin'], permissions: ['roles.create'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.create'] })
   @ApiOperation({ summary: 'Crear un nuevo rol' })
   @ApiResponse({ status: 201, description: 'Rol creado exitosamente' })
   @ApiResponse({ status: 400, description: 'Datos de entrada inválidos' })
@@ -63,7 +57,7 @@ export class AccessControlController {
   }
 
   @Patch('roles/:id')
-  @Auth({ roles: ['admin'], permissions: ['roles.update'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.update'] })
   @ApiOperation({ summary: 'Actualizar un rol' })
   @ApiResponse({ status: 200, description: 'Rol actualizado exitosamente' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
@@ -80,7 +74,7 @@ export class AccessControlController {
 
   @Delete('roles/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @Auth({ roles: ['admin'], permissions: ['roles.delete'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.delete'] })
   @ApiOperation({ summary: 'Eliminar un rol (soft delete)' })
   @ApiResponse({ status: 204, description: 'Rol eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Rol no encontrado' })
@@ -92,12 +86,8 @@ export class AccessControlController {
     return this.accessControlService.removeRole(id);
   }
 
-  /**
-   * ASIGNACIÓN DE PERMISOS A ROLES
-   */
-
   @Post('roles/:id/permissions')
-  @Auth({ roles: ['admin'], permissions: ['roles.update'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.update'] })
   @ApiOperation({
     summary: 'Asignar permisos a un rol (reemplaza los existentes)',
   })
@@ -117,7 +107,7 @@ export class AccessControlController {
   }
 
   @Patch('roles/:id/permissions/add')
-  @Auth({ roles: ['admin'], permissions: ['roles.update'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.update'] })
   @ApiOperation({
     summary: 'Agregar permisos adicionales a un rol (sin reemplazar)',
   })
@@ -137,7 +127,7 @@ export class AccessControlController {
   }
 
   @Patch('roles/:id/permissions/remove')
-  @Auth({ roles: ['admin'], permissions: ['roles.update'] })
+  @Auth({ roles: ['super-admin'], permissions: ['roles.update'] })
   @ApiOperation({ summary: 'Remover permisos específicos de un rol' })
   @ApiResponse({
     status: 200,
@@ -153,10 +143,6 @@ export class AccessControlController {
       assignPermissionsDto,
     );
   }
-
-  /**
-   * PERMISOS ENDPOINTS (solo lectura)
-   */
 
   @Get('permissions')
   @Auth({ permissions: ['permissions.read'] })
