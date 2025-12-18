@@ -6,11 +6,11 @@ import { RolesPermissionsGuard } from '../guards/role-permissions.guard';
 
 /**
  * Opciones para el decorador Auth
+ * @property permissions - Permisos requeridos (ej: ['users.create', 'users.delete'])
+ * @property roles - Roles requeridos (ej: ['admin', 'editor'])
  */
 export interface AuthOptions {
-  /** Permisos requeridos (ej: ['users.create', 'users.read']) */
   permissions?: string[];
-  /** Roles requeridos (ej: ['admin', 'editor']) */
   roles?: string[];
 }
 
