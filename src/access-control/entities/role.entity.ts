@@ -14,11 +14,11 @@ export class Role {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @Column({ unique: true })
+  slug: string; // Slug normalizado: 'super-admin', 'editor', 'viewer'
+
   @Column({ nullable: true })
   description?: string;
-
-  @Column({ unique: true })
-  slug: string; // Ejemplo: 'super-admin', 'editor', 'viewer'
 
   @ManyToMany(() => Permission, { eager: true }) // 'eager: true' carga los permisos automáticamente
   @JoinTable({
