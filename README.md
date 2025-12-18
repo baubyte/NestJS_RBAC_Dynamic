@@ -516,6 +516,98 @@ export class MyService {
 
 ---
 
+## 🗃️ Migraciones de Base de Datos
+
+### Configuración TypeORM
+
+Este proyecto usa TypeORM con soporte para migraciones. Las migraciones se almacenan en `db/migrations/`.
+
+### Scripts Disponibles
+
+```bash
+# Ver estado de migraciones
+yarn migration:show
+
+# Generar migración automáticamente (detecta cambios)
+yarn migration:generate db/migrations/NombreMigracion
+
+# Crear migración vacía (manual)
+yarn migration:create db/migrations/NombreMigracion
+
+# Ejecutar migraciones pendientes
+yarn migration:run
+
+# Revertir última migración
+yarn migration:revert
+```
+
+### Generar Migración Inicial
+
+Si estás empezando y tienes `DB_SYNCHRONIZE=true`:
+
+```bash
+# 1. Cambiar a false en .env
+DB_SYNCHRONIZE=false
+
+# 2. Generar migración inicial
+yarn migration:generate db/migrations/InitialSchema
+
+# 3. Ejecutar migración
+yarn migration:run
+
+# 4. Ejecutar seed
+curl -X POST http://localhost:3000/api/seed/run
+```
+
+### Workflow de Desarrollo
+
+#### Desarrollo Local
+```bash
+# .env
+DB_SYNCHRONIZE=true  # TypeORM sincroniza automáticamente
+```
+
+#### Staging/Producción
+```bash
+# .env
+DB_SYNCHRONIZE=false  # Usar migraciones
+
+# Desplegar cambios
+yarn build
+yarn migration:run
+yarn start:prod
+```
+
+### Ejemplo: Agregar Campo a Entidad
+
+```typescript
+// src/auth/entities/user.entity.ts
+@Entity('users')
+export class User {
+  // ... campos existentes
+
+  @Column({ default: true })
+  is_active: boolean;  // 👈 Nuevo campo
+}
+```
+
+### Mejores Prácticas
+
+✅ **Hacer**:
+- Usar migraciones en producción (`DB_SYNCHRONIZE=false`)
+- Nombrar migraciones descriptivamente: `AddEmailToUser`, `CreateProductsTable`
+- Revisar la migración generada antes de aplicarla
+- Versionar migraciones en Git
+- Probar migraciones en staging antes de producción
+
+❌ **No Hacer**:
+- Usar `DB_SYNCHRONIZE=true` en producción
+- Editar migraciones ya aplicadas
+- Eliminar migraciones del historial
+- Ejecutar `migration:revert` en producción sin respaldo
+
+---
+
 ## 🧪 Testing
 
 ```bash
