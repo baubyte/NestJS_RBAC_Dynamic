@@ -31,6 +31,9 @@ export class User {
   })
   password: string;
 
+  @Column({ default: true })
+  is_active: boolean;
+
   @ManyToMany(() => Role, { eager: true })
   @JoinTable({
     name: 'users_roles',

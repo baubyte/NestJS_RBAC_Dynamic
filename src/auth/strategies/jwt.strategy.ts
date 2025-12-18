@@ -6,7 +6,6 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { User } from '../entities/user.entity';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { envs } from 'src/config/envs';
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -21,8 +20,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload): Promise<User> {
     const { id } = payload;
-    const user = await this.userRepository.findOneBy({ id });
-    if (!user) throw new UnauthorizedException('token not valid');
+    const user = await this.userRepository.findOne({
+      where: { id },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid token - User does not exist');
+    }
+    if (!user.is_active) {
+      throw new UnauthorizedException('User is inactive, talk with an admin');
+    }
     return user;
   }
 }
