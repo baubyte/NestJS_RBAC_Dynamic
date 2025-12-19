@@ -9,6 +9,7 @@ import { Product, ProductImage } from 'src/product/entities';
 import { Permission, Role } from 'src/access-control/entities';
 import { SeedExecution } from './entities/seed-execution.entity';
 import { envs } from 'src/config/envs';
+import { PermissionsScannerService } from 'src/access-control/permissions-scanner.service';
 
 @Injectable()
 export class SeedService {
@@ -30,6 +31,7 @@ export class SeedService {
     readonly roleRepository: Repository<Role>,
     @InjectRepository(SeedExecution)
     readonly seedExecutionRepository: Repository<SeedExecution>,
+    private readonly permissionsScannerService: PermissionsScannerService,
   ) {}
 
   async runSeed() {
@@ -56,22 +58,36 @@ export class SeedService {
       await this.insertCategories();
       await this.insertProducts();
 
+      // Ejecutar scanner para detectar y crear permisos del código
+      this.logger.log('Ejecutando scanner de permisos...');
+      const scanResult = await this.permissionsScannerService.syncPermissions();
+
+      this.logger.log(
+        `Scanner completado: ${scanResult.found.length} permisos encontrados, ` +
+          `${scanResult.created.length} nuevos creados, ` +
+          `${scanResult.existing.length} ya existían`,
+      );
+
       // Registrar ejecución exitosa
       const execution = this.seedExecutionRepository.create({
         environment,
         success: true,
-        message: 'Seed executed successfully',
+        message: `Seed executed successfully. Scanner: ${scanResult.created.length} permissions created, ${scanResult.existing.length} existing.`,
       });
       await this.seedExecutionRepository.save(execution);
 
-      this.logger.log(
-        `Seed executed successfully in ${environment} environment`,
-      );
+      this.logger.log(`Seed ejecutado exitosamente en ambiente ${environment}`);
 
       return {
         message: 'Seed executed successfully',
         environment,
         timestamp: new Date(),
+        scanner: {
+          permissionsFound: scanResult.found.length,
+          permissionsCreated: scanResult.created.length,
+          permissionsExisting: scanResult.existing.length,
+          newPermissions: scanResult.created,
+        },
       };
     } catch (error) {
       // Registrar ejecución fallida
@@ -118,9 +134,18 @@ export class SeedService {
     }
   }
 
-  insertRoles() {
-    const roles = this.roleRepository.create(initialData.roles);
-    return this.roleRepository.save(roles);
+  async insertRoles() {
+    // Crear roles vacíos (los permisos se asignarán automáticamente por el scanner)
+    const roles = this.roleRepository.create(
+      initialData.roles.map((r) => ({
+        slug: r.slug,
+        description: r.description,
+      })),
+    );
+    await this.roleRepository.save(roles);
+    this.logger.log(
+      `✓ ${roles.length} roles creados (permisos se asignarán por auto-asignación)`,
+    );
   }
 
   insertUsers() {

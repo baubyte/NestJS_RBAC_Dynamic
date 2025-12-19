@@ -7,7 +7,6 @@ interface SeedUser {
   roles: { id: number }[];
 }
 interface SeedCategory {
-  id: number;
   name: string;
 }
 
@@ -18,7 +17,6 @@ interface SeedData {
   roles: SeedRole[];
 }
 interface SeedProduct {
-  id: number;
   name: string;
   description: string;
   tags?: string[];
@@ -28,36 +26,48 @@ interface SeedProduct {
 interface SeedRole {
   slug: string;
   description?: string;
-  //permissions: { id: number }[];
 }
 export const initialData: SeedData = {
   roles: [
-    { slug: 'super-admin', description: 'Acceso total' },
-    { slug: 'admin', description: 'Administrador' },
-    { slug: 'editor', description: 'Editor' },
-    { slug: 'viewer', description: 'Visualizador' },
+    {
+      slug: 'super-admin',
+      description:
+        'Acceso total al sistema (recibirá todos los permisos vía auto-asignación)',
+    },
+    {
+      slug: 'admin',
+      description:
+        'Administrador con permisos de lectura, creación y actualización',
+    },
+    {
+      slug: 'editor',
+      description: 'Editor con permisos de lectura y actualización',
+    },
+    {
+      slug: 'viewer',
+      description: 'Visualizador con permisos de solo lectura',
+    },
   ],
   users: [
     {
       email: 'admin@baubyte.com.ar',
       username: 'admin',
-      password: bcrypt.hashSync('Bauyte-super', 10),
+      password: bcrypt.hashSync('Bauyte-Super', 10),
       roles: [{ id: 1 }],
     },
   ],
 
   categories: [
-    { id: 1, name: 'ACCESORIOS DE PROTECCIÓN' },
-    { id: 2, name: 'GUANTES' },
-    { id: 3, name: 'LIMPIEZA' },
-    { id: 4, name: 'ROPA DE TRABAJO' },
-    { id: 5, name: 'ROPA DESCARTABLE' },
-    { id: 6, name: 'UNIFORMES' },
+    { name: 'ACCESORIOS DE PROTECCIÓN' },
+    { name: 'GUANTES' },
+    { name: 'LIMPIEZA' },
+    { name: 'ROPA DE TRABAJO' },
+    { name: 'ROPA DESCARTABLE' },
+    { name: 'UNIFORMES' },
   ],
 
   products: [
     {
-      id: 1,
       name: 'Carcasa Casco 3M H-700 CON REFLECTIVOS',
       description: 'Casco de seguridad 3M H-700... (resumido)',
       category: { id: 1 },
