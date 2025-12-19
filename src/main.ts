@@ -19,12 +19,11 @@ async function bootstrap() {
 
   // permitir que class-validator resuelva validators mediante el contenedor de Nest
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
-  console.log(envs.origin);
   // Configurar CORS con soporte para cookies
   app.enableCors({
-    origin: envs.origin, // URLs comunes de desarrollo
+    origin: envs.origin,
     credentials: true, // Permitir envío de cookies
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization'], // Ajustar según sea necesario se puede agregar más headers o ser mas permisivo con '*'
   });
 
   app.setGlobalPrefix('api');
