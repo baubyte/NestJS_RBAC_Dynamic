@@ -252,7 +252,7 @@ export class PermissionsScannerService implements OnModuleInit {
         await this.roleRepository.save(role);
 
         this.logger.log(
-          `✓ Rol "${roleSlug}" recibió ${permissionsToAdd.length} nuevo(s) permiso(s):`,
+          `Rol "${roleSlug}" recibió ${permissionsToAdd.length} nuevo(s) permiso(s):`,
         );
         permissionsToAdd.forEach((p) => {
           this.logger.log(`     + ${p.slug}`);

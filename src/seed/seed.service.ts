@@ -144,7 +144,7 @@ export class SeedService {
     );
     await this.roleRepository.save(roles);
     this.logger.log(
-      `✓ ${roles.length} roles creados (permisos se asignarán por auto-asignación)`,
+      `${roles.length} roles creados (permisos se asignarán por auto-asignación)`,
     );
   }
 
