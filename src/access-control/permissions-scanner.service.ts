@@ -8,6 +8,39 @@ import { META_PERMISSIONS } from 'src/auth/decorators/require-permissions.decora
 import { envs } from 'src/config/envs';
 import { matchPermission } from 'src/common/utils/permission-matcher.util';
 
+/**
+ * Interfaces para mejorar el tipado del scanner
+ */
+interface PermissionLocation {
+  controller: string;
+  method: string;
+}
+
+interface PermissionSyncResult {
+  found: string[];
+  created: string[];
+  existing: string[];
+}
+
+interface ControllerInstance {
+  constructor: { name: string };
+  [key: string]: unknown;
+}
+
+/**
+ * Type guard para validar que una instancia es un objeto controlador válido
+ */
+function isControllerInstance(
+  instance: unknown,
+): instance is ControllerInstance {
+  return (
+    instance !== null &&
+    typeof instance === 'object' &&
+    'constructor' in instance &&
+    typeof (instance as Record<string, unknown>).constructor === 'function'
+  );
+}
+
 @Injectable()
 export class PermissionsScannerService implements OnModuleInit {
   private readonly logger = new Logger(PermissionsScannerService.name);
@@ -37,57 +70,59 @@ export class PermissionsScannerService implements OnModuleInit {
     await this.syncPermissions();
   }
 
-  async syncPermissions(): Promise<{
-    found: string[];
-    created: string[];
-    existing: string[];
-  }> {
+  async syncPermissions(): Promise<PermissionSyncResult> {
     this.logger.log('Escaneando permisos en los controladores...');
 
     // 1. Obtener todos los controladores de la aplicación
     const controllers = this.discoveryService.getControllers();
-    const permissionsMap = new Map<
-      string,
-      { controller: string; method: string }
-    >();
+    const permissionsMap = new Map<string, PermissionLocation>();
 
     // 2. Recorrer cada controlador y sus métodos
     controllers.forEach((wrapper) => {
+      // DiscoveryService devuelve InstanceWrapper<any>, validamos con type guard
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const { instance } = wrapper;
-      if (!instance) return;
+      const instance = wrapper.instance;
+      if (!isControllerInstance(instance)) {
+        return;
+      }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-      const controllerName = instance.constructor.name;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const prototype = Object.getPrototypeOf(instance);
-      if (!prototype) return;
+      const controllerInstance = instance;
+      const controllerName = controllerInstance.constructor.name;
+      const prototype = Object.getPrototypeOf(controllerInstance) as object;
+
+      if (!prototype) {
+        return;
+      }
 
       // Obtener todos los métodos del controlador
       const methodNames = Object.getOwnPropertyNames(prototype).filter(
-        (name) =>
-          name !== 'constructor' &&
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          typeof prototype[name] === 'function',
+        (name) => {
+          const descriptor = Object.getOwnPropertyDescriptor(prototype, name);
+          return (
+            name !== 'constructor' &&
+            descriptor &&
+            typeof descriptor.value === 'function'
+          );
+        },
       );
 
       // Escanear cada método
       methodNames.forEach((methodName) => {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        const methodHandler = instance[methodName];
+        const methodHandler = controllerInstance[methodName];
+
+        // Verificar que sea una función antes de leer metadata
+        if (typeof methodHandler !== 'function') return;
 
         // Leer metadata del decorador @RequirePermissions (usado por @Auth)
         const permissions = this.reflector.get<string[]>(
           META_PERMISSIONS,
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           methodHandler,
         );
 
-        if (permissions && permissions.length > 0) {
+        if (Array.isArray(permissions) && permissions.length > 0) {
           permissions.forEach((permission) => {
             if (!permissionsMap.has(permission)) {
               permissionsMap.set(permission, {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 controller: controllerName,
                 method: methodName,
               });
@@ -110,7 +145,7 @@ export class PermissionsScannerService implements OnModuleInit {
     this.logger.log(`Permisos encontrados: ${foundPermissions.length}`);
     foundPermissions.forEach(([slug, location]) => {
       this.logger.debug(
-        `   - ${slug} (${location.controller}.${location.method})`,
+        `- ${slug} (${location.controller}.${location.method})`,
       );
     });
 
@@ -127,12 +162,8 @@ export class PermissionsScannerService implements OnModuleInit {
   }
 
   private async upsertPermissions(
-    permissionsMap: Map<string, { controller: string; method: string }>,
-  ): Promise<{
-    found: string[];
-    created: string[];
-    existing: string[];
-  }> {
+    permissionsMap: Map<string, PermissionLocation>,
+  ): Promise<PermissionSyncResult> {
     const slugs = Array.from(permissionsMap.keys());
 
     // Buscar permisos existentes (solo activos, no soft-deleted)
@@ -176,7 +207,7 @@ export class PermissionsScannerService implements OnModuleInit {
 
   private generateDescription(
     slug: string,
-    location: { controller: string; method: string },
+    location: PermissionLocation,
   ): string {
     // Parsear slug: 'users.create' -> 'Create users'
     const parts = slug.split('.');
@@ -261,11 +292,7 @@ export class PermissionsScannerService implements OnModuleInit {
     }
   }
 
-  async forceSyncPermissions(): Promise<{
-    found: string[];
-    created: string[];
-    existing: string[];
-  }> {
+  async forceSyncPermissions(): Promise<PermissionSyncResult> {
     this.logger.log('Forzando sincronización manual de permisos...');
     return this.syncPermissions();
   }
