@@ -42,6 +42,6 @@ export class Permission {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, '.')
-      .replace(/[^a-z0-9.]/g, ''); // Remove invalid characters
+      .replace(/[^a-z0-9.*-]/g, ''); // Permitir wildcards (*) y guiones
   }
 }
