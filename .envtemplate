@@ -14,6 +14,17 @@ DB_PORT=
 # Whether to synchronize the database schema (use with caution in production)
 DB_SYNCHRONIZE=true
 
-DEFAULT_USER_ROLE=user
+DEFAULT_USER_ROLE=viewer
 PERMISSIONS_AUTO_SYNC=true
+
+# Auto-asignación de permisos con wildcards (JSON format)
+# Formato: {"role-slug": ["pattern1", "pattern2"], ...}
+# Patrones soportados:
+#   - "*" = todos los permisos
+#   - "users.*" = todos los permisos de users (users.read, users.create, etc.)
+#   - "*.read" = todos los permisos .read de cualquier recurso
+#   - "users.read" = permiso específico
+# Ejemplo:
+AUTO_ASSIGN_PERMISSIONS_RULES={"super-admin":["*"],"admin":["*.read","*.create","*.update"],"editor":["*.read","*.update"],"viewer":["*.read"]}
+
 

@@ -10,6 +10,7 @@ import { Reflector } from '@nestjs/core';
 import { META_PERMISSIONS } from '../decorators/require-permissions.decorator';
 import { META_ROLES } from '../decorators/role-protected.decorator';
 import { User } from 'src/auth/entities/user.entity';
+import { hasAllPermissions } from 'src/common/utils/permission-matcher.util';
 
 /**
  * Guard que valida roles Y/O permisos del usuario
@@ -70,8 +71,10 @@ export class RolesPermissionsGuard implements CanActivate {
       const userPermissions = Array.from(new Set(allUserPermissions));
 
       // Verificamos que el usuario tenga TODOS los permisos requeridos
-      const hasPermission = requiredPermissions.every((permission) =>
-        userPermissions.includes(permission),
+      // Ahora con soporte de wildcards: users.*, *.read, *
+      const hasPermission = hasAllPermissions(
+        requiredPermissions,
+        userPermissions,
       );
 
       if (!hasPermission) {

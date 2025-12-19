@@ -2,9 +2,11 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Permission } from './entities/permission.entity';
-import { Repository, IsNull } from 'typeorm';
+import { Role } from './entities/role.entity';
+import { Repository, IsNull, In } from 'typeorm';
 import { META_PERMISSIONS } from 'src/auth/decorators/require-permissions.decorator';
 import { envs } from 'src/config/envs';
+import { matchPermission } from 'src/common/utils/permission-matcher.util';
 
 @Injectable()
 export class PermissionsScannerService implements OnModuleInit {
@@ -16,6 +18,8 @@ export class PermissionsScannerService implements OnModuleInit {
     private readonly reflector: Reflector,
     @InjectRepository(Permission)
     private readonly permissionsRepository: Repository<Permission>,
+    @InjectRepository(Role)
+    private readonly roleRepository: Repository<Role>,
   ) {
     // Habilitar auto-sync solo en desarrollo/staging (no en producción por defecto)
     this.autoSyncEnabled =
@@ -113,6 +117,11 @@ export class PermissionsScannerService implements OnModuleInit {
     // 4. Sincronizar con la base de datos
     const result = await this.upsertPermissions(permissionsMap);
 
+    // 5. Auto-asignar permisos nuevos a roles según reglas configuradas
+    if (result.created.length > 0) {
+      await this.autoAssignPermissionsToRoles(result.created);
+    }
+
     this.logger.log('Sincronización de permisos completada');
     return result;
   }
@@ -179,6 +188,79 @@ export class PermissionsScannerService implements OnModuleInit {
 
     return `Permiso: ${slug} (${location.controller}.${location.method})`;
   }
+  /**
+   * Auto-asigna permisos nuevos a roles basándose en reglas configuradas
+   *
+   * Las reglas se definen en AUTO_ASSIGN_PERMISSIONS_RULES con formato:
+   * {"super-admin":["*"],"admin":["*.read","*.create","*.update"],"editor":["*.read"]}
+   *
+   * @param newPermissionSlugs - Lista de permisos recién creados
+   */
+  private async autoAssignPermissionsToRoles(
+    newPermissionSlugs: string[],
+  ): Promise<void> {
+    const rules = envs.autoAssignPermissionsRules;
+
+    if (!rules || Object.keys(rules).length === 0) {
+      this.logger.debug(
+        'No hay reglas de auto-asignación configuradas (AUTO_ASSIGN_PERMISSIONS_RULES)',
+      );
+      return;
+    }
+
+    this.logger.log('Aplicando auto-asignación de permisos a roles...');
+
+    // Obtener los permisos recién creados de la BD
+    const newPermissions = await this.permissionsRepository.find({
+      where: { slug: In(newPermissionSlugs) },
+    });
+
+    // Recorrer cada regla configurada
+    for (const [roleSlug, patterns] of Object.entries(rules)) {
+      // Buscar el rol
+      const role = await this.roleRepository.findOne({
+        where: { slug: roleSlug },
+        relations: ['permissions'],
+      });
+
+      if (!role) {
+        this.logger.warn(
+          `Rol "${roleSlug}" no encontrado, saltando auto-asignación`,
+        );
+        continue;
+      }
+
+      // Filtrar permisos que coincidan con los patrones del rol
+      const permissionsToAssign = newPermissions.filter((permission) =>
+        patterns.some((pattern) => matchPermission(permission.slug, pattern)),
+      );
+
+      if (permissionsToAssign.length === 0) {
+        continue;
+      }
+
+      // Obtener IDs de permisos actuales del rol
+      const currentPermissionIds = new Set(role.permissions.map((p) => p.id));
+
+      // Agregar solo los permisos que no tenga ya
+      const permissionsToAdd = permissionsToAssign.filter(
+        (p) => !currentPermissionIds.has(p.id),
+      );
+
+      if (permissionsToAdd.length > 0) {
+        role.permissions.push(...permissionsToAdd);
+        await this.roleRepository.save(role);
+
+        this.logger.log(
+          `✓ Rol "${roleSlug}" recibió ${permissionsToAdd.length} nuevo(s) permiso(s):`,
+        );
+        permissionsToAdd.forEach((p) => {
+          this.logger.log(`     + ${p.slug}`);
+        });
+      }
+    }
+  }
+
   async forceSyncPermissions(): Promise<{
     found: string[];
     created: string[];

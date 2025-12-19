@@ -16,7 +16,6 @@ interface SeedData {
   categories: SeedCategory[];
   products: SeedProduct[];
   roles: SeedRole[];
-  permissions: SeedPermission[];
 }
 interface SeedProduct {
   id: number;
@@ -27,100 +26,21 @@ interface SeedProduct {
   images?: { id: number; url: string }[];
 }
 interface SeedRole {
-  id: number;
   slug: string;
   description?: string;
-  permissions: { id: number }[];
+  //permissions: { id: number }[];
 }
-interface SeedPermission {
-  id: number;
-  slug: string;
-  description?: string;
-}
-
 export const initialData: SeedData = {
-  permissions: [
-    {
-      id: 1,
-      slug: 'roles.create',
-      description: 'Permission to create roles',
-    },
-    {
-      id: 2,
-      slug: 'roles.read',
-      description: 'Permission to read role data',
-    },
-    {
-      id: 3,
-      slug: 'roles.update',
-      description: 'Permission to update role data',
-    },
-    {
-      id: 4,
-      slug: 'roles.delete',
-      description: 'Permission to delete role data',
-    },
-    {
-      id: 5,
-      slug: 'permissions.read',
-      description: 'Permission to read permissions',
-    },
-    {
-      id: 6,
-      slug: 'permissions.sync',
-      description: 'Permission to sync permissions',
-    },
-    {
-      id: 7,
-      slug: 'users.read',
-      description: 'Permission to read user data',
-    },
-    {
-      id: 8,
-      slug: 'users.export',
-      description: 'Permission to export user data',
-    },
-    {
-      id: 9,
-      slug: 'users.delete',
-      description: 'Permission to delete user data',
-    },
-  ],
   roles: [
-    {
-      id: 1,
-      slug: 'super-admin',
-      description: 'Super Administrator with full system access',
-      permissions: [
-        { id: 1 },
-        { id: 2 },
-        { id: 3 },
-        { id: 4 },
-        { id: 5 },
-        { id: 6 },
-        { id: 7 },
-        { id: 8 },
-        { id: 9 },
-      ],
-    },
-    {
-      id: 2,
-      slug: 'admin',
-      description: 'Regular user with limited access',
-      permissions: [
-        { id: 1 },
-        { id: 2 },
-        { id: 3 },
-        { id: 5 },
-        { id: 7 },
-        { id: 8 },
-      ],
-    },
+    { slug: 'super-admin', description: 'Acceso total' },
+    { slug: 'admin', description: 'Administrador' },
+    { slug: 'editor', description: 'Editor' },
+    { slug: 'viewer', description: 'Visualizador' },
   ],
   users: [
     {
       email: 'admin@baubyte.com.ar',
-      username: 'Admin',
+      username: 'admin',
       password: bcrypt.hashSync('Bauyte-super', 10),
       roles: [{ id: 1 }],
     },

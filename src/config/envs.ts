@@ -16,6 +16,7 @@ interface EnvVars {
   DB_SYNCHRONIZE: boolean;
   DEFAULT_USER_ROLE: string;
   PERMISSIONS_AUTO_SYNC: boolean;
+  AUTO_ASSIGN_PERMISSIONS_RULES?: string;
   ORIGIN?: string | string[];
 }
 
@@ -43,6 +44,7 @@ const envsSchema = joi
       .truthy('true')
       .falsy('false')
       .default(false),
+    AUTO_ASSIGN_PERMISSIONS_RULES: joi.string().optional(),
     ORIGIN: joi
       .alternatives()
       .try(joi.string(), joi.array().items(joi.string())),
@@ -64,6 +66,26 @@ if (error) {
 
 const envVars: EnvVars = value as unknown as EnvVars;
 
+/**
+ * Parsea las reglas de auto-asignación desde JSON string
+ * Formato esperado: {"super-admin":["*"],"admin":["*.read","*.create","*.update"]}
+ */
+const parseAutoAssignRules = (
+  rulesString?: string,
+): Record<string, string[]> => {
+  if (!rulesString) {
+    return {};
+  }
+  try {
+    return JSON.parse(rulesString) as Record<string, string[]>;
+  } catch {
+    console.warn(
+      'Invalid AUTO_ASSIGN_PERMISSIONS_RULES format, using empty rules',
+    );
+    return {};
+  }
+};
+
 export const envs = {
   port: envVars.PORT,
   dbPort: envVars.DB_PORT,
@@ -79,5 +101,8 @@ export const envs = {
   dbSynchronize: envVars.DB_SYNCHRONIZE,
   defaultUserRole: envVars.DEFAULT_USER_ROLE,
   permissionsAutoSync: envVars.PERMISSIONS_AUTO_SYNC,
+  autoAssignPermissionsRules: parseAutoAssignRules(
+    envVars.AUTO_ASSIGN_PERMISSIONS_RULES,
+  ),
   origin: envVars.ORIGIN,
 };

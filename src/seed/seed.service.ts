@@ -51,7 +51,6 @@ export class SeedService {
 
     try {
       await this.deleteTables();
-      await this.insertPermissions();
       await this.insertRoles();
       await this.insertUsers();
       await this.insertCategories();
@@ -117,13 +116,6 @@ export class SeedService {
     } finally {
       await queryRunner.release();
     }
-  }
-
-  insertPermissions() {
-    const permissions = this.permissionRepository.create(
-      initialData.permissions,
-    );
-    return this.permissionRepository.save(permissions);
   }
 
   insertRoles() {
