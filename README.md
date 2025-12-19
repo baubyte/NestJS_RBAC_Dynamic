@@ -255,7 +255,14 @@ El seed crea:
 ---
 
 ## 📦 Módulos Implementados
- (retorna access + refresh token)
+
+### 1. 🔐 Auth Module
+
+**Responsabilidad**: Autenticación JWT y gestión de usuarios.
+
+**Endpoints Principales**:
+```bash
+POST   /auth/register         # Registro de usuario
 POST   /auth/login            # Login (retorna access + refresh token en cookie)
 POST   /auth/refresh          # Refrescar access token (usa cookie automática)
 POST   /auth/logout           # Logout y revocar refresh token
@@ -268,19 +275,12 @@ GET    /auth/verify           # Verificar access token actual
   - **Refresh Token**: JWT de larga duración (30 días) en httpOnly cookie
 - Autenticación JWT con Passport (dos estrategias: jwt y jwt-refresh)
 - Hash de contraseñas con bcrypt
-- Asignación de rol por defecto (`user`)
+- Asignación de rol por defecto configurable
 - Asignación de múltiples roles al registrar
 - Tracking de dispositivos (IP + User-Agent)
 - Revocación de tokens en base de datos
-- Protección contra XSS (refresh token inaccesible desde JavaScript)ken actual
-```
-
-**Características**:
-- Autenticación JWT con Passport
-- Hash de contraseñas con bcrypt
-- Asignación de rol por defecto (`user`)
-- Asignación de múltiples roles al registrar
-- Validaciones personalizadas
+- Protección contra XSS (refresh token inaccesible desde JavaScript)
+- Validaciones personalizadas de contraseñas fuertes
 
 **Ejemplo de Registro**:
 ```json
@@ -1064,15 +1064,6 @@ yarn test:e2e
 # Coverage
 yarn test:cov
 ```
-
----
-
-## 📚 Documentación Adicional
-
-- [Sistema RBAC Flexible](src/auth/decorators/auth-examples.md)
-- [PermissionsScanner](src/access-control/PERMISSIONS_SCANNER.md)
-- [Access Control Module](src/access-control/README.md)
-
 ---
 
 ## 🤝 Contribuir
