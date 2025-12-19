@@ -47,7 +47,19 @@ const envsSchema = joi
     AUTO_ASSIGN_PERMISSIONS_RULES: joi.string().optional(),
     ORIGIN: joi
       .alternatives()
-      .try(joi.string(), joi.array().items(joi.string())),
+      .try(joi.string(), joi.array().items(joi.string()))
+      .custom((value): string | string[] => {
+        // Si es string, convertirlo a array
+        if (typeof value === 'string') {
+          // Si es *, retornar array con un solo elemento
+          if (value.trim() === '*') {
+            return '*';
+          }
+          // Si es string con comas, dividirlo en array
+          return value.split(',').map((origin) => origin.trim());
+        }
+        return value as string[];
+      }),
   })
   .unknown(true);
 
