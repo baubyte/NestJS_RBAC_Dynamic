@@ -173,31 +173,45 @@ cp .env.template .env
 Editar `.env`:
 
 ```bash
-# Aplicación
-PORT=3000
+# Entorno y Puerto
 NODE_ENV=development
+PORT=3000
+# CORS permitidos (separados por comas para múltiples), soporta único o comodín *
+ORIGIN=http://localhost:3000,http://localhost:5173,http://localhost:4200
+# JWT Secrets y Expiraciones
+JWT_ACCESS_SECRET=your-super-secret-access-key-change-this-in-production-min-32-chars
+JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production-min-32-chars
+JWT_ACCESS_TOKEN_EXPIRATION=15M
+JWT_REFRESH_TOKEN_EXPIRATION=30D
 
 # Base de Datos
-DB_HOST=localhost
-DB_PORT=3306
-DB_USERNAME=root
-DB_PASSWORD=your_password
-DB_NA - Access Token (corta duración)
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-JWT_ACCESS_TOKEN_EXPIRATION=15m
+DB_USERNAME=
+DB_PASSWORD=
+DB_NAME=
+DB_HOST=
+DB_PORT=
+# Habilitar sincronización automática de esquema (solo para desarrollo)
+DB_SYNCHRONIZE=true
 
-# JWT - Refresh Token (larga duración)
-JWT_REFRESH_SECRET=your-super-secret-refresh-key-different-from-jwt-secret
-JWT_REFRESH_TOKEN_EXPIRATION=30d
-# JWT
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
-JWT_EXPIRES_IN=1h
+# Rol por defecto asignado a nuevos usuarios
+DEFAULT_USER_ROLE=viewer
+# Habilitar sincronización automática de permisos desde decoradores en el código
+PERMISSIONS_AUTO_SYNC=true
 
-# Roles por defecto
-DEFAULT_USER_ROLE=user
-
-# Permisos (auto-sync solo en development)
-PERMISSIONS_AUTO_SYNC=false
+# Auto-asignación de permisos (JSON format)
+# El scanner detecta permisos del código y los asigna automáticamente según estos patrones
+# Formato: {"role-slug": ["pattern1", "pattern2"], ...}
+#
+# Patrones soportados:
+#   "*"           → Todos los permisos (solo para super-admin)
+#   "users.*"     → Todos los permisos de users (users.read, users.create, users.update, users.delete, etc.)
+#   "*.read"      → Todos los permisos .read de cualquier recurso
+#   "users.read"  → Permiso específico exacto
+#
+# Los permisos se crean automáticamente al escanear decoradores @Auth() en el código
+# Luego se asignan a roles que coincidan con estos patrones
+#
+AUTO_ASSIGN_PERMISSIONS_RULES={"super-admin":["*"],"admin":["*.read","*.create","*.update"],"editor":["*.read","*.update"],"viewer":["*.read"]}
 ```
 
 ### 6️⃣ Ejecutar la Aplicación

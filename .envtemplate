@@ -1,12 +1,15 @@
+# Entorno y Puerto
 NODE_ENV=development
 PORT=3000
 # CORS permitidos (separados por comas para múltiples), soporta único o comodín *
 ORIGIN=http://localhost:3000,http://localhost:5173,http://localhost:4200
+# JWT Secrets y Expiraciones
 JWT_ACCESS_SECRET=your-super-secret-access-key-change-this-in-production-min-32-chars
 JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production-min-32-chars
 JWT_ACCESS_TOKEN_EXPIRATION=15M
 JWT_REFRESH_TOKEN_EXPIRATION=30D
 
+# Base de Datos
 DB_USERNAME=
 DB_PASSWORD=
 DB_NAME=
@@ -34,5 +37,3 @@ PERMISSIONS_AUTO_SYNC=true
 # Luego se asignan a roles que coincidan con estos patrones
 #
 AUTO_ASSIGN_PERMISSIONS_RULES={"super-admin":["*"],"admin":["*.read","*.create","*.update"],"editor":["*.read","*.update"],"viewer":["*.read"]}
-
-
